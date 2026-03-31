@@ -1,13 +1,16 @@
 package com.ingredient.rahaga.repository;
-
 import com.ingredient.rahaga.datasource.DataSource;
+import com.ingredient.rahaga.entity.CategoryEnum;
+import com.ingredient.rahaga.entity.Dish;
+import com.ingredient.rahaga.entity.DishTypeEnum;
+import com.ingredient.rahaga.entity.Ingredient;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
+import java.sql.*;
 import java.util.ArrayList;
+import java.util.List;
 
 public class DishRepository {
+
     private final DataSource dataSource;
 
     public DishRepository(DataSource dataSource) {
@@ -27,70 +30,123 @@ public class DishRepository {
                 dish.setId(rs.getInt("id"));
                 dish.setName(rs.getString("name"));
                 dish.setDishType(DishTypeEnum.valueOf(rs.getString("dish_type")));
-
-                String typeStr = rs.getString("dish_type");
-                if ("STARTER".equals(typeStr)) {
-                    typeStr = "START";
-                }
-                dish.setDishType(DishTypeEnum.valueOf(typeStr));
-
-                if (rs.getObject("selling_price") != null) {
-                    dish.setSellingPrice(rs.getDouble("selling_price"));
-                }
+                dish.setSellingPrice(rs.getDouble("selling_price"));
                 dish.setIngredients(loadIngredientsForDish(conn, dish.getId()));
-
-                dish.setIngredients(loadIngredientsForDish(dish.getId()));
-
                 dishes.add(dish);
             }
+
         } catch (SQLException e) {
-            @@ -43,7 +51,7 @@
-            return dishes;
+            throw new RuntimeException("Erreur lors de la récupération des plats", e);
         }
 
-        private List<Ingredient> loadIngredientsForDish(Connection conn, Integer dishId) throws SQLException {
-            private List<Ingredient> loadIngredientsForDish(Integer dishId) {
-                List<Ingredient> ingredients = new ArrayList<>();
-                String sql = """
-            SELECT i.id, i.name, i.price, i.category
-@@ -53,7 +61,9 @@
-            ORDER BY i.id
-            """;
+        return dishes;
+    }
 
-                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                    try (Connection conn = dataSource.getConnection();
-                         PreparedStatement stmt = conn.prepareStatement(sql)) {
+    private List<Ingredient> loadIngredientsForDish(Connection conn, Integer dishId) throws SQLException {
+        List<Ingredient> ingredients = new ArrayList<>();
+        String sql = "SELECT i.id, i.name, i.price, i.category FROM ingredient i " +
+                "JOIN dish_ingredient di ON i.id = di.id_ingredient WHERE di.id_dish = ? ORDER BY i.id";
 
-                        stmt.setInt(1, dishId);
-                        try (ResultSet rs = stmt.executeQuery()) {
-                            while (rs.next()) {
-                                @@ -65,6 +75,8 @@
-                                        ingredients.add(ing);
-                            }
-                        }
-                    } catch (SQLException e) {
-                        throw new RuntimeException("Erreur lors du chargement des ingrédients du plat id=" + dishId, e);
-                    }
-                    return ingredients;
+        try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, dishId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Ingredient ing = new Ingredient();
+                    ing.setId(rs.getInt("id"));
+                    ing.setName(rs.getString("name"));
+                    ing.setPrice(rs.getDouble("price"));
+                    ing.setCategory(CategoryEnum.valueOf(rs.getString("category")));
+                    ingredients.add(ing);
                 }
-                @@ -82,7 +94,11 @@
-                        deleteStmt.executeUpdate();
+            }
+        }
+
+        return ingredients;
+    }
+
+    public boolean existsByName(String name) {
+        String sql = "SELECT COUNT(*) FROM dish WHERE name = ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, name);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur lors de la vérification du nom du plat", e);
+        }
+
+        return false;
+    }
+
+    public List<Dish> saveAll(List<Dish> dishes) {
+        String sql = "INSERT INTO dish(name, dish_type, selling_price) VALUES (?, ?, ?) RETURNING id";
+
+        try (Connection conn = dataSource.getConnection()) {
+            for (Dish dish : dishes) {
+                try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+                    stmt.setString(1, dish.getName());
+                    stmt.setString(2, dish.getDishType().name());
+                    stmt.setDouble(3, dish.getSellingPrice());
+                    try (ResultSet rs = stmt.executeQuery()) {
+                        if (rs.next()) {
+                            dish.setId(rs.getInt("id"));
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur lors de l'enregistrement des plats", e);
+        }
+
+        return dishes;
+    }
+
+    public List<Dish> findWithFilters(Double priceUnder, Double priceOver, String name) {
+        List<Dish> dishes = new ArrayList<>();
+        StringBuilder sql = new StringBuilder("SELECT id, name, dish_type, selling_price FROM dish WHERE 1=1");
+        List<Object> params = new ArrayList<>();
+
+        if (priceUnder != null) {
+            sql.append(" AND selling_price < ?");
+            params.add(priceUnder);
+        }
+        if (priceOver != null) {
+            sql.append(" AND selling_price > ?");
+            params.add(priceOver);
+        }
+        if (name != null) {
+            sql.append(" AND LOWER(name) LIKE ?");
+            params.add("%" + name.toLowerCase() + "%");
+        }
+
+        sql.append(" ORDER BY id");
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            for (int i = 0; i < params.size(); i++) {
+                stmt.setObject(i + 1, params.get(i));
             }
 
-            String insertSql = "INSERT INTO dish_ingredient (id_dish, id_ingredient, quantity_required, unit) VALUES (?, ?, 0.0, 'KG')";
-            String insertSql = """
-                INSERT INTO dish_ingredient (id_dish, id_ingredient, quantity_required, unit)
-                VALUES (?, ?, 0.0, 'KG')
-                """;
-
-            try (PreparedStatement insertStmt = conn.prepareStatement(insertSql)) {
-                for (Ingredient ing : ingredientsToSet) {
-                    if (ing.getId() != null && ingredientExists(conn, ing.getId())) {
-                        @@ -94,7 +110,7 @@
-                    }
-                    conn.commit();
-                } catch (SQLException e) {
-                    throw new RuntimeException("Erreur lors de la mise à jour des ingrédients du plat", e);
-                    throw new RuntimeException("Erreur lors de la mise à jour des ingrédients du plat id=" + dishId, e);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Dish dish = new Dish();
+                    dish.setId(rs.getInt("id"));
+                    dish.setName(rs.getString("name"));
+                    dish.setDishType(DishTypeEnum.valueOf(rs.getString("dish_type")));
+                    dish.setSellingPrice(rs.getDouble("selling_price"));
+                    dishes.add(dish);
                 }
+            }
+
+        } catch (SQLException e) {
+            throw new RuntimeException("Erreur lors de la récupération des plats filtrés", e);
+        }
+
+        return dishes;
+    }
 }

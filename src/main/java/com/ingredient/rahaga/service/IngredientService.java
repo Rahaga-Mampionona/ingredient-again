@@ -1,32 +1,26 @@
 package com.ingredient.rahaga.service;
-
-import org.springframework.format.annotation.DurationFormat;
+import com.ingredient.rahaga.entity.Ingredient;
+import com.ingredient.rahaga.repository.IngredientRepository;
 import org.springframework.stereotype.Service;
-import
 
-import java.time.Instant;
+import java.util.List;
 
-
+@Service
 public class IngredientService {
 
-    @Service
-    public class IngredientService {
+    private final IngredientRepository ingredientRepository;
 
-        private final IngredientRepository ingredientRepository;
+    public IngredientService(IngredientRepository ingredientRepository) {
+        this.ingredientRepository = ingredientRepository;
+    }
 
-        public IngredientService(IngredientRepository ingredientRepository) {
-            this.ingredientRepository = ingredientRepository;
-        }
+    
+    public List<Ingredient> getAllIngredients() {
+        return ingredientRepository.findAll();
+    }
 
-        public List<Ingredient> getAllIngredients() {
-            return ingredientRepository.findAll();
-        }
-
-        public Ingredient getIngredientById(Integer id) {
-            return ingredientRepository.findById(id);
-        }
-
-        public StockValue getStockValueAt(Integer ingredientId, Instant at, DurationFormat.Unit unit) {
-            return ingredientRepository.getStockValueAt(ingredientId, at, unit);
-        }
+    
+    public Ingredient getIngredientById(Integer id) {
+        return ingredientRepository.findById(id);
+    }
 }

@@ -1,54 +1,34 @@
 package com.ingredient.rahaga.controller;
 
-import
+import com.ingredient.rahaga.entity.Ingredient;
 import com.ingredient.rahaga.service.IngredientService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@RestController
+@RequestMapping("/ingredients")
 public class IngredientController {
-    private final IngredientRepository ingredientRepository;
+
     private final IngredientService ingredientService;
 
-    public <Ingredient> ResponseEntity<Object> IngredientController(IngredientRepository ingredientRepository) {
-        this.ingredientRepository = ingredientRepository;
     public IngredientController(IngredientService ingredientService) {
-            this.ingredientService = ingredientService;
-        }
-
-        @GetMapping
-        public List<Ingredient> getAllIngredients() {
-            return ingredientRepository.findAll();
-            return ingredientService.getAllIngredients();
-        }
-
-        @GetMapping("/{id}")
-        public ResponseEntity<Ingredient> getIngredientById(@PathVariable Integer id) {
-            try {
-                Ingredient ingredient = ingredientRepository.findById(id);
-                return ResponseEntity.ok(ingredient);
-            } catch (RuntimeException e) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
-            }
-            Ingredient ingredient = ingredientService.getIngredientById(id);
-            return ResponseEntity.ok(ingredient);
-        }
-
-        @GetMapping("/{id}/stock")
-        @@ -46,11 +41,7 @@ public ResponseEntity<StockValue> getStock(
-        return ResponseEntity.badRequest().build();
+        this.ingredientService = ingredientService;
     }
 
+    @GetMapping
+    public ResponseEntity<List<Ingredient>> getAllIngredients() {
+        return ResponseEntity.ok(ingredientService.getAllIngredients());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Ingredient> getIngredientById(@PathVariable Integer id) {
         try {
-        StockValue stock = ingredientRepository.getStockValueAt(id, at, unit);
-        return ResponseEntity.ok(stock);
-    } catch (RuntimeException e) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            return ResponseEntity.ok(ingredientService.getIngredientById(id));
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
     }
-    StockValue stock = ingredientService.getStockValueAt(id, at, unit);
-        return ResponseEntity.ok(stock);
-}
 }
